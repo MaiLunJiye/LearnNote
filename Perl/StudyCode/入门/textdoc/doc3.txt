@@ -1,0 +1,8 @@
+持久性私有变量
+也就是静态变量， state 修饰
+use 5.010；		#必须要声明版本，从5.010开始才有的
+sub marine{
+	state $n = 0;	#持久变量，变量会一直保留。
+	$n++;
+	print "Hello,sailor number $n!\n";
+}
