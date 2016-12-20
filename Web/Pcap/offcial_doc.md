@@ -13,7 +13,13 @@
 
 Ok, let's begin by defining who this document is written for. Obviously, some basic knowledge of C is required, unless you only wish to know the basic theory. You do not need to be a code ninja; for the areas likely to be understood only by more experienced programmers, I'll be sure to describe concepts in greater detail. Additionally, some basic understanding of networking might help, given that this is a packet sniffer and all. All of the code examples presented here have been tested on FreeBSD 4.3 with a default kernel.
 
+> 好吧，让我们看看这个文档是写给谁的（读这篇文档的基础修养），显然，要知道一些C语言的基础知识，或者你是天才，懂得其中的原理。你可以不是一个编程忍者（极客）。在讲到一些比较深入的地方，我会很详细地去描述。此外，了解一些基本的网络原理更加利于理解
+>
+>这些代码是在 FreeBSD4.3 的默认内核上运行的
+
 ## Getting Started: The format of a pcap application
+
+> 开始： 编写pcap的步骤
 
 The first thing to understand is the general layout of a pcap sniffer. The flow of code is as follows:
 
@@ -374,68 +380,107 @@ The other technique we can use is more complicated, and probably more useful. Fe
 
 Callback functions are not anything new, and are very common in many API's. The concept behind a callback function is fairly simple. Suppose I have a program that is waiting for an event of some sort. For the purpose of this example, let's pretend that my program wants a user to press a key on the keyboard. Every time they press a key, I want to call a function which then will determine that to do. The function I am utilizing is a callback function. Every time the user presses a key, my program will call the callback function. Callbacks are used in pcap, but instead of being called when a user presses a key, they are called when pcap sniffs a packet. The two functions that one can use to define their callback is pcap_loop() and pcap_dispatch(). pcap_loop() and pcap_dispatch() are very similar in their usage of callbacks. Both of them call a callback function every time a packet is sniffed that meets our filter requirements (if any filter exists, of course. If not, then all packets that are sniffed are sent to the callback.)
 
-> "Callback functon" 回调函数并不是什么新东西.这个在许多API上面都很常见,回调函数背后的概念相当简单。举个例子,假设我有一个程序正在等待某种事件。让我们假设我的程序希望用户按下键盘上的一个键。每次他们按下一个键，我想调用一个函数，然后会决定做。我使用的函数是回调函数。每次用户按下一个键，我的程序将调用回调函数。回调在pcap中使用，但是当用户按下一个键时，它们被调用，而不是在pcap嗅探数据包时被调用。可以用来定义回调的两个函数是pcap_loop（）和pcap_dispatch（）。 pcap_loop（）和pcap_dispatch（）在回调的使用非常相似。两者都在每次侦听到满足我们的过滤器要求的数据包时调用一个回调函数（如果存在任何过滤器，如果不存在，那么所有被嗅探的数据包都将被发送到回调）。
+> "Callback functon" 回调函数并不是什么新东西.这个在许多API上面都很常见,回调函数背后的概念相当简单。举个例子,假设我有一个程序正在等待某种事件。让我们假设我的程序希望用户按下键盘上的一个键。每次他们按下一个键，我想调用一个函数，然后会决定做。我使用的函数是回调函数。每次用户按下一个键，我的程序将调用回调函数。回调在pcap中使用，但是当用户按下一个键时，它们被调用，而不是在pcap嗅探数据包时被调用。可以用来定义回调的两个函数是`pcap_loop（）`和`pcap_dispatch（）`。 `pcap_loop（）`和`pcap_dispatch（）`在回调的使用非常相似。两者都在每次侦听到满足我们的过滤器要求的数据包时调用一个回调函数（如果存在任何过滤器，如果不存在，那么所有被嗅探的数据包都将被发送到回调）。
 
-The prototype for pcap_loop() is below:
 
-    int pcap_loop(pcap_t *p, int cnt, pcap_handler callback, u_char *user)
+> #### 百度百科的解释
+> > 因为可以把调用者与被调用者分开，所以调用者不关心谁是被调用者。它只需知道存在一个具有特定原型和限制条件的被调用函数。简而言之，回调函数就是允许用户把需要调用的方法的指针作为参数传递给一个函数，以便该函数在处理相似事件的时候可以灵活的使用不同的方法。
+
+The prototype for `pcap_loop()` is below:
+
+> 这个函数的原型是
+
+```c
+    int pcap_loop(pcap_t *p,        //会话句柄
+                    int cnt,        //一次嗅探多少个包(负值表示一直嗅探,直到发送错误) 
+                    pcap_handler callback,      //回调函数本身(只是函数的名字)
+                    u_char *user)           //传给回调函数的参数
+```
 The first argument is our session handle. Following that is an integer that tells pcap_loop() how many packets it should sniff for before returning (a negative value means it should sniff until an error occurs). The third argument is the name of the callback function (just its identifier, no parentheses). The last argument is useful in some applications, but many times is simply set as NULL. Suppose we have arguments of our own that we wish to send to our callback function, in addition to the arguments that pcap_loop() sends. This is where we do it. Obviously, you must typecast to a u_char pointer to ensure the results make it there correctly; as we will see later, pcap makes use of some very interesting means of passing information in the form of a u_char pointer. After we show an example of how pcap does it, it should be obvious how to do it here. If not, consult your local C reference text, as an explanation of pointers is beyond the scope of this document. pcap_dispatch() is almost identical in usage. The only difference between pcap_dispatch() and pcap_loop() is that pcap_dispatch() will only process the first batch of packets that it receives from the system, while pcap_loop() will continue processing packets or batches of packets until the count of packets runs out. For a more in depth discussion of their differences, see the pcap man page.
+
+> 下面是机翻:
+>
+>> 第一个参数是我们的会话句柄。以下是一个整数告诉`pcap_loop（）`返回前应该嗅探多少个数据包（一个负值意味着它应该侦测，直到错误发生）。第三个参数是回调函数的名称（只是它的标识符，没有括号）。最后一个参数在某些应用程序中很有用，但很多时候只是简单的设置为NULL。假设我们有自己的参数，我们希望发送到回调函数，除了`pcap_loop（）`发送的参数。这是我们做的。显然，你必须输入一个`u_char`指针，以确保结果正确;我们将在后面看到，pcap使用一些非常有趣的方式以`u_char`指针的形式传递信息。在我们展示一个pcap如何做的例子后，它应该是显而易见的如何做到这里。如果没有，请参考您的本地C参考文本，因为指针的解释超出了本文档的范围。 `pcap_dispatch（）`几乎相同的用法。` pcap_dispatch（）`和`pcap_loop（）`之间的唯一区别是，`pcap_dispatch（）`将只处理从系统接收的第一批数据包，而`pcap_loop（）`将继续处理数据包或批数据包，直到数据包计数结束。有关其差异的更深入讨论，请参阅pcap手册页。
 
 Before we can provide an example of using pcap_loop(), we must examine the format of our callback function. We cannot arbitrarily define our callback's prototype; otherwise, pcap_loop() would not know how to use the function. So we use this format as the prototype for our callback function:
 
-    void got_packet(u_char *args, const struct pcap_pkthdr *header,
-        const u_char *packet);
+> 在我们提供一个 `pcap_loop()` 之前,我们必须检查我们回调函数的格式.回调函数的原型不能随便定义,不然 `pcap_loop()` 将无法使用
+
+```c
+    void got_packet(u_char *args,       // `pcap_loop()` 的最后一个参数，传参用
+                    const struct pcap_pkthdr *header,
+                    const u_char *packet);
+```
+
 Let's examine this in more detail. First, you'll notice that the function has a void return type. This is logical, because pcap_loop() wouldn't know how to handle a return value anyway. The first argument corresponds to the last argument of pcap_loop(). Whatever value is passed as the last argument to pcap_loop() is passed to the first argument of our callback function every time the function is called. The second argument is the pcap header, which contains information about when the packet was sniffed, how large it is, etc. The pcap_pkthdr structure is defined in pcap.h as:
 
-    struct pcap_pkthdr {
-        struct timeval ts; /* time stamp */
-        bpf_u_int32 caplen; /* length of portion present */
-        bpf_u_int32 len; /* length this packet (off wire) */
-    };
+> 让我细细道来,首先你看到这是一个void返回的函数。这也很合理，毕竟`pcap_loop()`也不知道怎么处理你的返回值。第一个参数就是`pcap_loop()`的最后一个参数（可以理解为如果我们要给回调函数传参数，那么就直接传给调用他的 `pcap_loop()` 最后一个参数就行了。第二个参数是pcap 的头部，里面包含了数据包何时被嗅探的信息，以及数据包的大小
+>
+> 回调函数一般是自己编写对抓到的数据包进行处理的函数
+
+> `pcap_pkthdr`结构体长成这样
+
+```c
+struct pcap_pkthdr {
+    struct timeval ts; /* time stamp */
+    bpf_u_int32 caplen; /* length of portion present */
+    bpf_u_int32 len; /* length this packet (off wire) */
+};
+```
+
 These values should be fairly self explanatory. The last argument is the most interesting of them all, and the most confusing to the average novice pcap programmer. It is another pointer to a u_char, and it points to the first byte of a chunk of data containing the entire packet, as sniffed by pcap_loop().
+
+> 这些变量的作用就和名字一样。最后一个比其他的都有用，一般会感到混乱的都是新手，它是指向u_char的另一个指针，它指向包含整个数据包的数据块的第一个字节，如`pcap_loop（）`所嗅探。
+
 
 But how do you make use of this variable (named "packet" in our prototype)? A packet contains many attributes, so as you can imagine, it is not really a string, but actually a collection of structures (for instance, a TCP/IP packet would have an Ethernet header, an IP header, a TCP header, and lastly, the packet's payload). This u_char pointer points to the serialized version of these structures. To make any use of it, we must do some interesting typecasting.
 
+> 但是如何使用这个变量（在我们的原型中命名为“packet”）？一个包包含许多属性，所以你可以想象，它不是一个真正的字符串，但实际上是一个结构的集合（例如，TCP / IP包将有一个以太网头，IP头，TCP头，最后，分组的有效载荷）。这个u_char指针指向这些结构的序列化版本。要使用它，我们必须做一些有趣的类型转换。
+
+
 First, we must have the actual structures define before we can typecast to them. The following are the structure definitions that I use to describe a TCP/IP packet over Ethernet.
 
+> 首先，我们必须先定义实际结构，然后才能将其转换为它们。以下是我用来描述基于以太网的TCP / IP数据包的结构定义。
+
+```c
 /* Ethernet addresses are 6 bytes */
 #define ETHER_ADDR_LEN  6
 
-    /* Ethernet header */
+    /* Ethernet header */   //以太网头部
     struct sniff_ethernet {
-        u_char ether_dhost[ETHER_ADDR_LEN]; /* Destination host address */
-        u_char ether_shost[ETHER_ADDR_LEN]; /* Source host address */
-        u_short ether_type; /* IP? ARP? RARP? etc */
+        u_char ether_dhost[ETHER_ADDR_LEN]; /* Destination host address */  //目标主机地址
+        u_char ether_shost[ETHER_ADDR_LEN]; /* Source host address */   //源主机地址
+        u_short ether_type; /* IP? ARP? RARP? etc */    //IP? ARP? RARP?....
     };
 
     /* IP header */
     struct sniff_ip {
         u_char ip_vhl;      /* version << 4 | header length >> 2 */
-        u_char ip_tos;      /* type of service */
-        u_short ip_len;     /* total length */
-        u_short ip_id;      /* identification */
-        u_short ip_off;     /* fragment offset field */
-    #define IP_RF 0x8000        /* reserved fragment flag */
-    #define IP_DF 0x4000        /* dont fragment flag */
-    #define IP_MF 0x2000        /* more fragments flag */
-    #define IP_OFFMASK 0x1fff   /* mask for fragmenting bits */
-        u_char ip_ttl;      /* time to live */
-        u_char ip_p;        /* protocol */
-        u_short ip_sum;     /* checksum */
-        struct in_addr ip_src,ip_dst; /* source and dest address */
+        u_char ip_tos;      /* type of service */ //服务类型
+        u_short ip_len;     /* total length */  //总长度
+        u_short ip_id;      /* identification */    //身份
+        u_short ip_off;     /* fragment offset field */     //片段偏移字段
+    #define IP_RF 0x8000        /* reserved fragment flag */    //保留片段标志
+    #define IP_DF 0x4000        /* dont fragment flag */    // 没有碎片标志
+    #define IP_MF 0x2000        /* more fragments flag */   // 更多碎片标志
+    #define IP_OFFMASK 0x1fff   /* mask for fragmenting bits */ //分片位掩码
+        u_char ip_ttl;      /* time to live */      //存活时间
+        u_char ip_p;        /* protocol */          //协议
+        u_short ip_sum;     /* checksum */      //校验和
+        struct in_addr ip_src,ip_dst; /* source and dest address */     //源地址
     };
     #define IP_HL(ip)       (((ip)->ip_vhl) & 0x0f)
     #define IP_V(ip)        (((ip)->ip_vhl) >> 4)
 
-    /* TCP header */
+    /* TCP header */        //TCP头部
     typedef u_int tcp_seq;
 
     struct sniff_tcp {
-        u_short th_sport;   /* source port */
-        u_short th_dport;   /* destination port */
-        tcp_seq th_seq;     /* sequence number */
-        tcp_seq th_ack;     /* acknowledgement number */
-        u_char th_offx2;    /* data offset, rsvd */
+        u_short th_sport;   /* source port */       //源端口
+        u_short th_dport;   /* destination port */  //目标端口
+        tcp_seq th_seq;     /* sequence number */   //数据报文序列号
+        tcp_seq th_ack;     /* acknowledgement number */    //确认号
+        u_char th_offx2;    /* data offset, rsvd */     //数据偏移量
     #define TH_OFF(th)  (((th)->th_offx2 & 0xf0) >> 4)
         u_char th_flags;
     #define TH_FIN 0x01
@@ -447,65 +492,125 @@ First, we must have the actual structures define before we can typecast to them.
     #define TH_ECE 0x40
     #define TH_CWR 0x80
     #define TH_FLAGS (TH_FIN|TH_SYN|TH_RST|TH_ACK|TH_URG|TH_ECE|TH_CWR)
-        u_short th_win;     /* window */
-        u_short th_sum;     /* checksum */
-        u_short th_urp;     /* urgent pointer */
+        u_short th_win;     /* window */        //窗口
+        u_short th_sum;     /* checksum */      //校验和
+        u_short th_urp;     /* urgent pointer */    //紧急指针
 };
+
+```
+
+
 So how does all of this relate to pcap and our mysterious u_char pointer? Well, those structures define the headers that appear in the data for the packet. So how can we break it apart? Be prepared to witness one of the most practical uses of pointers (for all of those new C programmers who insist that pointers are useless, I smite you).
+
+> 所以这是如何与pcap和我们的神秘u_char指针相关？那么，那些结构定义出现在数据包的数据中的头。那么我们如何才能分开呢？准备见证指针的最实际用途之一（对于所有那些坚持指针是无用的新C程序员，我能说，我能打人吗）。
 
 Again, we're going to assume that we are dealing with a TCP/IP packet over Ethernet. This same technique applies to any packet; the only difference is the structure types that you actually use. So let's begin by defining the variables and compile-time definitions we will need to deconstruct the packet data.
 
+> 再次，我们将假设我们正在处理通过以太网的TCP / IP数据包。这种相同的技术适用于任何分组;唯一的区别是您实际使用的结构类型。因此，让我们开始定义解构数据包数据所需的变量和编译时定义。
+
+```c
 /* ethernet headers are always exactly 14 bytes */
 #define SIZE_ETHERNET 14
 
-    const struct sniff_ethernet *ethernet; /* The ethernet header */
-    const struct sniff_ip *ip; /* The IP header */
-    const struct sniff_tcp *tcp; /* The TCP header */
-    const char *payload; /* Packet payload */
+const struct sniff_ethernet *ethernet; /* The ethernet header */    //以太网头部
+const struct sniff_ip *ip; /* The IP header */      //IP头部
+const struct sniff_tcp *tcp; /* The TCP header */   //TCP头部
+const char *payload; /* Packet payload */           //数据包有效载荷
 
-    u_int size_ip;
-    u_int size_tcp;
+u_int size_ip;
+u_int size_tcp;
+```
+
 And now we do our magical typecasting:
 
-    ethernet = (struct sniff_ethernet*)(packet);
-    ip = (struct sniff_ip*)(packet + SIZE_ETHERNET);
-    size_ip = IP_HL(ip)*4;
-    if (size_ip < 20) {
-        printf("   * Invalid IP header length: %u bytes\n", size_ip);
-        return;
-    }
-    tcp = (struct sniff_tcp*)(packet + SIZE_ETHERNET + size_ip);
-    size_tcp = TH_OFF(tcp)*4;
-    if (size_tcp < 20) {
-        printf("   * Invalid TCP header length: %u bytes\n", size_tcp);
-        return;
-    }
-    payload = (u_char *)(packet + SIZE_ETHERNET + size_ip + size_tcp);
+> 然后 使用魔法 进行类型转换
+
+```c
+ethernet = (struct sniff_ethernet*)(packet);        //先类型强转
+ip = (struct sniff_ip*)(packet + SIZE_ETHERNET);    //然后通过指针偏移的方法
+size_ip = IP_HL(ip)*4;                  //指针偏移
+if (size_ip < 20) {
+    printf("   * Invalid IP header length: %u bytes\n", size_ip);
+    return;
+}
+tcp = (struct sniff_tcp*)(packet + SIZE_ETHERNET + size_ip);
+size_tcp = TH_OFF(tcp)*4;       //指针偏移
+if (size_tcp < 20) {
+    printf("   * Invalid TCP header length: %u bytes\n", size_tcp);
+    return;
+}
+payload = (u_char *)(packet + SIZE_ETHERNET + size_ip + size_tcp);
+
+```
+
 How does this work? Consider the layout of the packet data in memory. The u_char pointer is really just a variable containing an address in memory. That's what a pointer is; it points to a location in memory.
+
+> 这个怎么用？考虑分组数据在存储器中的布局。 u_char指针实际上只是一个包含内存地址的变量。这是一个指针;它指向内存中的位置。
 
 For the sake of simplicity, we'll say that the address this pointer is set to is the value X. Well, if our three structures are just sitting in line, the first of them (sniff_ethernet) being located in memory at the address X, then we can easily find the address of the structure after it; that address is X plus the length of the Ethernet header, which is 14, or SIZE_ETHERNET.
 
+> 为了简单起见，我们会说这个指针设置的地址是值X.如果我们的三个结构只是排成行，第一个（sniff_ethernet）位于内存中的地址X ，那么我们可以很容易找到结构的地址后面;该地址为X加上以太网头的长度，即14，或SIZE_ETHERNET。
+
 Similarly if we have the address of that header, the address of the structure after it is the address of that header plus the length of that header. The IP header, unlike the Ethernet header, does not have a fixed length; its length is given, as a count of 4-byte words, by the header length field of the IP header. As it's a count of 4-byte words, it must be multiplied by 4 to give the size in bytes. The minimum length of that header is 20 bytes.
+
+> 类似地，如果我们有该报头的地址，则其后的结构的地址是该报头的地址加上该报头的长度。 IP报头与以太网报头不同，没有固定长度;其长度作为4字节字的计数由IP报头的报头长度字段给出。因为它是4字节字的计数，所以必须乘以4以给出字节大小。该标题的最小长度为20字节。
 
 The TCP header also has a variable length; its length is given, as a number of 4-byte words, by the "data offset" field of the TCP header, and its minimum length is also 20 bytes.
 
+> TCP报头也有可变长度;其长度作为4字节字的数量由TCP报头的“数据偏移”字段给出，并且其最小长度也是20字节。
+
 So let's make a chart:
 
-Variable    Location (in bytes)
-sniff_ethernet  X
-sniff_ip    X + SIZE_ETHERNET
-sniff_tcp   X + SIZE_ETHERNET + {IP header length}
-payload X + SIZE_ETHERNET + {IP header length} + {TCP header length}
+> 让我们绘个图
+
+|Variable|    Location (in bytes)|
+|----|----|
+|sniff_ethernet|  X|
+|sniff_ip |   X + SIZE_ETHERNET|
+|sniff_tcp  | X + SIZE_ETHERNET + {IP header length}|
+|payload | X + SIZE_ETHERNET + {IP header length} + {TCP header length}|
+
+
 The sniff_ethernet structure, being the first in line, is simply at location X. sniff_ip, who follows directly after sniff_ethernet, is at the location X, plus however much space the Ethernet header consumes (14 bytes, or SIZE_ETHERNET). sniff_tcp is after both sniff_ip and sniff_ethernet, so it is location at X plus the sizes of the Ethernet and IP headers (14 bytes, and 4 times the IP header length, respectively). Lastly, the payload (which doesn't have a single structure corresponding to it, as its contents depends on the protocol being used atop TCP) is located after all of them.
+
+> sniff_ethernet结构是第一个在位置X。sniff_ip直接在sniff_ethernet之后，位于位置X，加上以太网报头消耗的空间（14字节或SIZE_ETHERNET）。 sniff_tcp在sniff_ip和sniff_ethernet之后，所以它的位置在X加上以太网和IP头的大小（14个字节，分别是IP头长度的4倍）。最后，有效载荷（其不具有对应于其的单个结构，因为其内容取决于在TCP顶上使用的协议）位于所有这些之后。
 
 So at this point, we know how to set our callback function, call it, and find out the attributes about the packet that has been sniffed. It's now the time you have been waiting for: writing a useful packet sniffer. Because of the length of the source code, I'm not going to include it in the body of this document. Simply download sniffex.c and try it out.
 
-Wrapping Up
+> 所以在这一点上，我们知道如何设置我们的回调函数，调用它，并找出关于已被嗅探的数据包的属性。现在是你一直在等待的时间：写一个有用的数据包嗅探器。由于源代码的长度，我不会将其包括在本文档的正文中。只需下载sniffex.c(http://www.tcpdump.org/sniffex.c)并试试看。
+
+## Wrapping Up
 
 At this point you should be able to write a sniffer using pcap. You have learned the basic concepts behind opening a pcap session, learning general attributes about it, sniffing packets, applying filters, and using callbacks. Now it's time to get out there and sniff those wires!
 
+> 在这一点上，你应该能够使用pcap写一个嗅探器。您已经了解了打开pcap会话，学习其常规属性，嗅探数据包，应用过滤器和使用回调的基本概念。现在是时候出去，闻闻那些电线！
+
 This document is Copyright 2002 Tim Carstens. All rights reserved. Redistribution and use, with or without modification, are permitted provided that the following conditions are met:
 
-Redistribution must retain the above copyright notice and this list of conditions.
-The name of Tim Carstens may not be used to endorse or promote products derived from this document without specific prior written permission.
+> 本文件是版权所有2002 Tim Carstens。版权所有。如果满足以下条件，则允许重新分发和使用（有或无修改）：
+
+1. Redistribution must retain the above copyright notice and this list of conditions.
+2. The name of Tim Carstens may not be used to endorse or promote products derived from this document without specific prior written permission.
+
+> 1.再分发必须保留上述版权声明和此条件列表
+>
+> 2.在未经事先书面许可的情况下，Tim Carstens的名称不得用于支持或宣传本文档中的产品。
+>
 /* Insert 'wh00t' for the BSD license here */
+
+> 在此处插入'wh00t'作为BSD许可证
+
+*******
+
+
+> 译者： 胡雄钦
+>
+> 这个文档是本人学习时候遇到了问题查到的文档，顺便在学习过程中翻译了一下，版权归原作者所有
+>
+> 里面许多无关紧要的细节部分使用了机翻，所以发现有错误的话，可以自行修改
+>
+> Translator: 胡雄钦（Hu.xiongqin)
+>
+> I found this document in the course of my study，and translated it during learning，The copyright belongs to the original author
+>
+> Many of the insignificant details of the use of the Google translation, so that there are errors, you can modify
